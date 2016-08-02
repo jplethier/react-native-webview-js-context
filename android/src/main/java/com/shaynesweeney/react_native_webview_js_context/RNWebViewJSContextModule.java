@@ -2,6 +2,7 @@ package com.shaynesweeney.react_native_webview_js_context;
 
 import android.annotation.SuppressLint;
 import android.os.Handler;
+import android.os.Build;
 import android.util.SparseArray;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
@@ -52,6 +53,7 @@ public class RNWebViewJSContextModule extends ReactContextBaseJavaModule {
     private final SparseArray<WebView> mWebViews;
     private final Map<String, JSCallback> mCallbacks;
     public static final String GLOBAL_RESOLVE_KEY = "global-resolve";
+    private String mHtml;
 
     public RNWebViewJSContextModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -80,21 +82,8 @@ public class RNWebViewJSContextModule extends ReactContextBaseJavaModule {
                     webView = createWebView(contextID);
                 }
 
-                mCallbacks.put("global-resolve", new JSCallback() {
-                    @Override
-                    public void invoke(String response) {
-                        resolveCallback.invoke(contextID);
-                    }
-                });
-
-                mCallbacks.put("global-reject", new JSCallback() {
-                    @Override
-                    public void invoke(String response) {
-                        rejectCallback.invoke();
-                    }
-                });
-
-                webView.loadData(html, "text/html", "UTF-8");
+                mHtml = html;
+                resolveCallback.invoke(contextID);
 //                webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null);
             }
         };
@@ -111,19 +100,19 @@ public class RNWebViewJSContextModule extends ReactContextBaseJavaModule {
 
         final String jsWrapper = String.format(
                 "setTimeout(function(){"
-                        + "var resolve = function(response) {"
-                        + "    $RNWebViewJSContext.callback_resolver(\"%s\", response);"
-                        + "},"
-                        + "reject = function(uuid, response) {"
-                        + "    $RNWebViewJSContext.callback_rejecter(\"%s\", response);"
-                        + "};"
-                        + "try {"
-                        + "    %s"
-                        + "} catch (e) {"
-                        + "    reject(e);"
-                        + "}"
-                        + "}, 0)",
-                resolverName, rejecterName, script
+                    + "var resolve = function(response) {"
+                    + "    $RNWebViewJSContext.callback_resolver(\"%s\", response);"
+                    + "},"
+                    + "reject = function(uuid, response) {"
+                    + "    $RNWebViewJSContext.callback_rejecter(\"%s\", response);"
+                    + "};"
+                    + "try {"
+                    + "    %s"
+                    + "} catch (e) {"
+                    + "    reject(e);"
+                    + "}"
+                    + "}, 0)",
+            resolverName, rejecterName, script
         );
 
         final ReactApplicationContext context = getReactApplicationContext();
@@ -148,7 +137,7 @@ public class RNWebViewJSContextModule extends ReactContextBaseJavaModule {
                     }
                 });
 
-                webView.evaluateJavascript(jsWrapper, null);
+                webView.loadData(String.format(mHtml, jsWrapper), "text/html", "UTF-8");
             }
         };
         mainHandler.post(myRunnable);
@@ -217,13 +206,6 @@ public class RNWebViewJSContextModule extends ReactContextBaseJavaModule {
                 rejecter.invoke(response);
             }
         }, "$RNWebViewJSContext");
-
-
-        webView.evaluateJavascript(
-                "(function($w){" +
-                        "$w.resolve = $RNWebViewJSContext.global_resolver.bind($RNWebViewJSContext);" +
-                        "$w.reject = $RNWebViewJSContext.global_rejecter.bind($RNWebViewJSContext);" +
-                        "})(window);", null);
 
 
         return webView;
